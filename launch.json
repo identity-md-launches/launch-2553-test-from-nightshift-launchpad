@@ -1,0 +1,24 @@
+{
+  "kind": "custom_token",
+  "token": {
+    "contract": "NightshiftTestToken",
+    "name": "Test from Nightshift launchpad",
+    "symbol": "TESTNS",
+    "decimals": 18,
+    "constructorArgs": [],
+    "totalSupply": "100000000000000000000"
+  },
+  "contracts": [],
+  "pool": {
+    "pairedCurrency": "0xd34a99bc0f67ae1bbd63c660e6d0b0dd03e263b7",
+    "fee": 12500,
+    "tickSpacing": 60,
+    "initialPrice": "79228162514264337593543950336"
+  },
+  "economics": {
+    "poolBps": 7600,
+    "initialMarketCapWei": "25000000000000000000000",
+    "remainderTo": "0x6c4c78f2c3bdf4c4318fe305fb1c8bc1694d19b5"
+  },
+  "notes": "NightshiftTestToken is a community coin as a test, launched with the NIGHTSHIFT Launchpad at getnightshift.tech/launchpad. Its parameterless constructor mints all 100 TESTNS with 18 decimals once to msg.sender, the launch factory. Transfers are plain ERC-20 transfers with no fee, tax or limit. There is no owner, administrative control or ability to mint more. No application contracts are included. The pool pairs with IMD at a 1.25% pool fee. The opening price is derived from economics.initialMarketCapWei and totalSupply; pool.initialPrice records provenance only. Logo concept: a frog with dark skin, a hoodie and glowing eyes."
+}
