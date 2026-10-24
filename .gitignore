@@ -1,0 +1,9 @@
+out/
+cache/
+broadcast/
+test/scratch/
+.imd-blocked.json
+.claude/
+.idea
+.vscode
+.mcp.json
