@@ -8,6 +8,7 @@ import {NightshiftTestToken} from "../src/NightshiftTestToken.sol";
 
 /// @notice Behavioural tests for the TESTNS token: metadata, the one-time mint, plain transfers
 ///         with no fee or limit, allowance semantics, and the absence of any mint or admin path.
+/// forge-config: default.fuzz.runs = 1000
 contract NightshiftTestTokenTest is Test {
     uint256 internal constant SUPPLY = 100 ether;
 
@@ -214,42 +215,51 @@ contract NightshiftTestTokenTest is Test {
     // ---------------------------------------------------------------- no mint, no admin
 
     function test_noMintOrAdminSelectorExists() public {
-        string[22] memory signatures = [
-            "mint(address,uint256)",
-            "mint(uint256)",
-            "mint()",
-            "issue(uint256)",
-            "burn(uint256)",
-            "burnFrom(address,uint256)",
-            "owner()",
-            "setOwner(address)",
-            "transferOwnership(address)",
-            "renounceOwnership()",
-            "upgradeTo(address)",
-            "initialize(address)",
-            "pause()",
-            "unpause()",
-            "setMinter(address)",
-            "blacklist(address)",
-            "freeze(address)",
-            "setBlacklist(address,bool)",
-            "setTransfersEnabled(bool)",
-            "disableTransfers()",
-            "seize(address)",
-            "setFee(uint256)"
-        ];
         address attacker = makeAddr("attacker");
-        for (uint256 i = 0; i < signatures.length; i++) {
-            bytes memory data = abi.encodeWithSignature(signatures[i], attacker, type(uint128).max);
+        // Use valid encodings for each signature. In particular, an address or an arbitrary
+        // integer in a bool argument would revert during decoding even if an admin path existed.
+        bytes[22] memory calls = [
+            abi.encodeWithSignature("mint(address,uint256)", attacker, 1),
+            abi.encodeWithSignature("mint(uint256)", 1),
+            abi.encodeWithSignature("mint()"),
+            abi.encodeWithSignature("issue(uint256)", 1),
+            abi.encodeWithSignature("burn(uint256)", 1),
+            abi.encodeWithSignature("burnFrom(address,uint256)", alice, 1),
+            abi.encodeWithSignature("owner()"),
+            abi.encodeWithSignature("setOwner(address)", attacker),
+            abi.encodeWithSignature("transferOwnership(address)", attacker),
+            abi.encodeWithSignature("renounceOwnership()"),
+            abi.encodeWithSignature("upgradeTo(address)", attacker),
+            abi.encodeWithSignature("initialize(address)", attacker),
+            abi.encodeWithSignature("pause()"),
+            abi.encodeWithSignature("unpause()"),
+            abi.encodeWithSignature("setMinter(address)", attacker),
+            abi.encodeWithSignature("blacklist(address)", alice),
+            abi.encodeWithSignature("freeze(address)", alice),
+            abi.encodeWithSignature("setBlacklist(address,bool)", alice, true),
+            abi.encodeWithSignature("setTransfersEnabled(bool)", false),
+            abi.encodeWithSignature("disableTransfers()"),
+            abi.encodeWithSignature("seize(address)", alice),
+            abi.encodeWithSignature("setFee(uint256)", 1)
+        ];
+        vm.prank(deployer);
+        assertTrue(token.transfer(alice, 1 ether));
+        for (uint256 i = 0; i < calls.length; i++) {
             vm.prank(attacker);
-            (bool okAttacker,) = address(token).call(data);
-            assertFalse(okAttacker, signatures[i]);
+            (bool okAttacker,) = address(token).call(calls[i]);
+            assertFalse(okAttacker, "stranger reached an admin selector");
             vm.prank(deployer);
-            (bool okDeployer,) = address(token).call(data);
-            assertFalse(okDeployer, signatures[i]);
+            (bool okDeployer,) = address(token).call(calls[i]);
+            assertFalse(okDeployer, "deployer reached an admin selector");
+            assertEq(token.totalSupply(), SUPPLY);
+            assertEq(token.balanceOf(alice), 1 ether);
+            assertEq(token.balanceOf(deployer), SUPPLY - 1 ether);
+            assertEq(token.balanceOf(attacker), 0);
         }
-        assertEq(token.totalSupply(), SUPPLY);
-        assertEq(token.balanceOf(attacker), 0);
+        vm.prank(alice);
+        assertTrue(token.transfer(bob, 1 ether), "holder must remain free to transfer");
+        assertEq(token.balanceOf(bob), 1 ether);
+        assertEq(token.balanceOf(alice), 0);
     }
 
     function test_RevertWhen_sendingEther() public {
@@ -284,7 +294,8 @@ contract NightshiftTestTokenTest is Test {
     // ---------------------------------------------------------------- fuzz
 
     function testFuzz_transferIsExactAndConservesSupply(address to, uint256 amount) public {
-        vm.assume(to != address(0) && to != deployer);
+        to = address(uint160(bound(uint160(to), 1, type(uint160).max)));
+        if (to == deployer) to = alice;
         amount = bound(amount, 0, SUPPLY);
 
         vm.prank(deployer);
@@ -296,7 +307,7 @@ contract NightshiftTestTokenTest is Test {
     }
 
     function testFuzz_RevertWhen_transferExceedsBalance(address to, uint256 amount) public {
-        vm.assume(to != address(0));
+        to = address(uint160(bound(uint160(to), 1, type(uint160).max)));
         amount = bound(amount, SUPPLY + 1, type(uint256).max);
 
         vm.prank(deployer);
